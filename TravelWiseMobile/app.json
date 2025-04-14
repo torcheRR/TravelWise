@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "TravelWise",
+    "slug": "travelwise-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.travelwise.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.travelwise.app"
+    },
+    "web": {
+      "favicon": "./src/assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TravelWise uygulamasının fotoğraflarınıza erişmesi gerekiyor.",
+          "cameraPermission": "TravelWise uygulamasının kameranıza erişmesi gerekiyor."
+        }
+      ]
+    ]
+  }
+}
