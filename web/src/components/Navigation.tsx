@@ -1,5 +1,6 @@
+// src/components/Navigation.tsx
 import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   HomeIcon,
   ChatBubbleLeftIcon,
@@ -9,10 +10,14 @@ import {
   Bars3Icon,
   XMarkIcon,
   BookmarkIcon,
+  ArrowRightOnRectangleIcon,
 } from "@heroicons/react/24/outline";
+import { useAuth } from "../context/AuthContext"; // <-- burası önemli
 
 const Navigation: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth(); // kullanıcı durumu ve logout fonksiyonu
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navItems = [
@@ -30,6 +35,11 @@ const Navigation: React.FC = () => {
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
   };
 
   return (
@@ -68,6 +78,25 @@ const Navigation: React.FC = () => {
                 </Link>
               );
             })}
+
+            {/* Login / Logout */}
+            {user ? (
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50"
+              >
+                <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                <span>Çıkış Yap</span>
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-blue-600 hover:bg-blue-50"
+              >
+                <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                <span>Giriş Yap</span>
+              </Link>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -115,6 +144,29 @@ const Navigation: React.FC = () => {
               </Link>
             );
           })}
+
+          {/* Mobile Giriş/Çıkış */}
+          {user ? (
+            <button
+              onClick={() => {
+                handleLogout();
+                closeMobileMenu();
+              }}
+              className="flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium text-red-600 hover:bg-red-50"
+            >
+              <ArrowRightOnRectangleIcon className="w-6 h-6" />
+              <span>Çıkış Yap</span>
+            </button>
+          ) : (
+            <Link
+              to="/login"
+              onClick={closeMobileMenu}
+              className="flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium text-blue-600 hover:bg-blue-50"
+            >
+              <ArrowRightOnRectangleIcon className="w-6 h-6" />
+              <span>Giriş Yap</span>
+            </Link>
+          )}
         </div>
       </div>
     </nav>
