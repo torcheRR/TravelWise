@@ -10,6 +10,7 @@ import {
   MagnifyingGlassIcon,
   ClockIcon,
 } from "@heroicons/react/24/outline";
+import { db, storage } from "../firebase";
 
 interface ImagePreview {
   id: string;
@@ -512,7 +513,7 @@ const CreatePost: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Fotoğraf Yükleme */}
               <div>
-                <label className="block text-sm font-medium text-white mb-2">
+                <label className="text-black block text-sm font-medium mb-2">
                   Fotoğraflar <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
