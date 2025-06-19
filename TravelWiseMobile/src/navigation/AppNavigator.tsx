@@ -1,22 +1,44 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { COLORS } from "../constants/theme";
-import { HomeScreen } from "../screens/HomeScreen";
-import { TripsScreen } from "../screens/TripsScreen";
-import { SavedScreen } from "../screens/SavedScreen";
-import { AIChatScreen } from "../screens/AIChatScreen";
-import { ProfileScreen } from "../screens/ProfileScreen";
+import HomeScreen from "../screens/HomeScreen";
+import TripsScreen from "../screens/TripsScreen";
+import SavedScreen from "../screens/SavedScreen";
+import AIChatScreen from "../screens/AIChatScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 import { AuthNavigator } from "./AuthNavigator";
 import { DestinationDetailScreen } from "../screens/DestinationDetailScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
+import { CreatePostScreen } from "../screens/CreatePostScreen";
+import { PostDetailScreen } from "../screens/PostDetailScreen";
+import { useAuth } from "../contexts/AuthContext";
+import { CategoryScreen } from "../screens/CategoryScreen";
+import { useNavigation } from "@react-navigation/native";
+import SettingsScreen from "../screens/SettingsScreen";
+import { useTheme } from "../contexts/ThemeContext";
 
 export type RootStackParamList = {
-  Auth: undefined;
-  Main: undefined;
-  DestinationDetail: { destination: { title: string; location: string } };
+  AuthStack: undefined;
+  MainStack: undefined;
+};
+
+export type MainStackParamList = {
+  MainTabs: undefined;
+  Home: undefined;
+  Profile: { userId: string };
+  PostDetail: {
+    postId: string;
+    commentId?: string;
+  };
+  CreatePost: undefined;
+  Settings: undefined;
   Notifications: undefined;
+  DestinationDetail: { destination: { title: string; location: string } };
+  Category: {
+    category: { key: string; label: string; icon: string; color: string };
+  };
 };
 
 export type MainTabParamList = {
@@ -27,10 +49,12 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
+const MainStack = createNativeStackNavigator<MainStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const MainNavigator = () => {
+const MainTabs = () => {
+  const { theme } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -77,26 +101,28 @@ const MainNavigator = () => {
             );
           }
         },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.text.secondary,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.secondary,
         tabBarStyle: {
-          backgroundColor: COLORS.white,
+          backgroundColor: theme.card,
           borderTopWidth: 0.5,
-          borderTopColor: COLORS.border,
-          height: 60,
-          paddingBottom: 6,
+          borderTopColor: theme.border,
+          height: 75,
+          paddingBottom: 24,
         },
         headerShown: true,
         headerTitle: "TravelWise",
         headerTitleAlign: "center",
         headerStyle: {
-          backgroundColor: COLORS.background,
+          backgroundColor: theme.background,
         },
         headerTitleStyle: {
-          color: COLORS.primary,
+          color: theme.primary,
           fontWeight: "700",
           fontSize: 22,
         },
+        headerLeft: () => null,
+        gestureEnabled: false,
       })}
     >
       <Tab.Screen
@@ -128,16 +154,56 @@ const MainNavigator = () => {
   );
 };
 
-export const AppNavigator = () => {
+const MainStackNavigator = () => {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Auth" component={AuthNavigator} />
-      <Stack.Screen name="Main" component={MainNavigator} />
-      <Stack.Screen
+    <MainStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      <MainStack.Screen name="MainTabs" component={MainTabs} />
+      <MainStack.Screen
         name="DestinationDetail"
         component={DestinationDetailScreen}
       />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} />
-    </Stack.Navigator>
+      <MainStack.Screen name="Notifications" component={NotificationsScreen} />
+      <MainStack.Screen name="CreatePost" component={CreatePostScreen} />
+      <MainStack.Screen name="PostDetail" component={PostDetailScreen} />
+      <MainStack.Screen
+        name="Category"
+        component={CategoryScreen}
+        options={{ headerShown: false }}
+      />
+      <MainStack.Screen name="Settings" component={SettingsScreen} />
+    </MainStack.Navigator>
+  );
+};
+
+export const AppNavigator = () => {
+  const { user } = useAuth();
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    if (user) {
+      // Ana stack'e geç
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainStack" }],
+      });
+    }
+  }, [user]);
+
+  return (
+    <RootStack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}
+    >
+      {!user ? (
+        <RootStack.Screen name="AuthStack" component={AuthNavigator} />
+      ) : (
+        <RootStack.Screen name="MainStack" component={MainStackNavigator} />
+      )}
+    </RootStack.Navigator>
   );
 };

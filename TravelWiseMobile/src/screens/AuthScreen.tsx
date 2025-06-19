@@ -7,6 +7,9 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Input } from "../components/Input";
 import { Button } from "../components/Button";
@@ -15,6 +18,8 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../navigation/AuthNavigator";
 import { useAuth } from "../contexts/AuthContext";
+import { signUp, signIn, getUser } from "../services/supabase";
+import { Colors } from "react-native/Libraries/NewAppScreen";
 
 type AuthScreenNavigationProp = NativeStackNavigationProp<
   AuthStackParamList,
@@ -23,25 +28,49 @@ type AuthScreenNavigationProp = NativeStackNavigationProp<
 
 export const AuthScreen: React.FC = () => {
   const navigation = useNavigation<AuthScreenNavigationProp>();
-  const { login } = useAuth();
+  const { login, setUser } = useAuth();
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [full_name, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async () => {
-    if (!email || !password) {
-      setError("Lütfen tüm alanları doldurun");
+  const handleAuth = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Hata", "Lütfen tüm alanları doldurun.");
       return;
     }
 
-    setLoading(true);
-    setError("");
+    if (!isLogin && (!username.trim() || !full_name.trim())) {
+      Alert.alert("Hata", "Lütfen tüm alanları doldurun.");
+      return;
+    }
 
     try {
-      await login(email, password);
-    } catch (err) {
-      setError("Giriş yapılırken bir hata oluştu");
+      setLoading(true);
+      if (isLogin) {
+        const user = await signIn(email.trim(), password);
+        const userProfile = await getUser(user.id);
+        if (!userProfile) {
+          throw new Error("Kullanıcı profili bulunamadı. Lütfen kayıt olun.");
+        }
+        login(user);
+      } else {
+        const user = await signUp(
+          email.trim(),
+          password,
+          username.trim(),
+          full_name.trim()
+        );
+        const userProfile = await getUser(user.id);
+        login({ ...user, ...userProfile });
+      }
+      // navigation.replace("MainStack");
+    } catch (error: any) {
+      console.error("Kimlik doğrulama hatası:", error);
+      Alert.alert("Hata", error.message || "Bir hata oluştu.");
     } finally {
       setLoading(false);
     }
@@ -51,53 +80,81 @@ export const AuthScreen: React.FC = () => {
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.logoContainer}>
           <Text style={styles.title}>TravelWise</Text>
-          <Text style={styles.subtitle}>Seyahat deneyimlerinizi paylaşın</Text>
+          <Text style={styles.subtitle}>
+            {isLogin ? "Hesabınıza giriş yapın" : "Yeni hesap oluşturun"}
+          </Text>
         </View>
 
         <View style={styles.formContainer}>
-          <Input
-            label="E-posta"
-            placeholder="E-posta adresinizi girin"
+          {!isLogin && (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="Kullanıcı Adı"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Ad Soyad"
+                value={full_name}
+                onChangeText={setFullName}
+                autoCapitalize="words"
+              />
+            </>
+          )}
+
+          <TextInput
+            style={styles.input}
+            placeholder="E-posta"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
           />
 
-          <Input
-            label="Şifre"
-            placeholder="Şifrenizi girin"
+          <TextInput
+            style={styles.input}
+            placeholder="Şifre"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
           />
 
-          <TouchableOpacity
-            style={styles.forgotPassword}
-            onPress={() => navigation.navigate("ForgotPassword")}
-          >
-            <Text style={styles.forgotPasswordText}>Şifremi Unuttum</Text>
-          </TouchableOpacity>
-
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <Button
-            title="Giriş Yap"
-            onPress={handleLogin}
-            loading={loading}
-            style={styles.loginButton}
-          />
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleAuth}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.buttonText}>
+                {isLogin ? "Giriş Yap" : "Kayıt Ol"}
+              </Text>
+            )}
+          </TouchableOpacity>
 
-          <Button
-            title="Kayıt Ol"
-            onPress={() => navigation.navigate("Register")}
-            variant="outline"
-            style={styles.registerButton}
-          />
+          <TouchableOpacity
+            style={styles.switchButton}
+            onPress={() => setIsLogin(!isLogin)}
+          >
+            <Text style={styles.switchButtonText}>
+              {isLogin
+                ? "Hesabınız yok mu? Kayıt olun"
+                : "Zaten hesabınız var mı? Giriş yapın"}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -126,26 +183,43 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FONT_SIZE.md,
-    color: COLORS.text.secondary,
+    color: COLORS.text,
     textAlign: "center",
   },
   formContainer: {
     marginTop: SPACING.xl,
   },
-  forgotPassword: {
-    alignSelf: "flex-end",
-    marginTop: SPACING.xs,
+  input: {
+    backgroundColor: COLORS.background,
+    borderColor: COLORS.textSecondary,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    fontSize: FONT_SIZE.md,
   },
-  forgotPasswordText: {
-    color: COLORS.primary,
-    fontSize: FONT_SIZE.sm,
-    fontWeight: "500" as const,
+  button: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: SPACING.md,
+    alignItems: "center",
+    marginTop: SPACING.sm,
   },
-  loginButton: {
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZE.md,
+    fontWeight: "600",
+  },
+  switchButton: {
     marginTop: SPACING.lg,
+    alignItems: "center",
   },
-  registerButton: {
-    marginTop: SPACING.md,
+  switchButtonText: {
+    color: COLORS.primary,
+    fontSize: FONT_SIZE.md,
   },
   errorText: {
     color: COLORS.error,

@@ -1,127 +1,85 @@
 import React from "react";
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
   ActivityIndicator,
-  ViewStyle,
-  TextStyle,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableOpacityProps,
 } from "react-native";
-import {
-  COLORS,
-  SPACING,
-  FONT_SIZE,
-  BORDER_RADIUS,
-  FONT_WEIGHT,
-} from "../constants/theme";
 
-interface ButtonProps {
+type ButtonProps = TouchableOpacityProps & {
   title: string;
-  onPress: () => void;
-  variant?: "primary" | "secondary" | "outline";
-  size?: "small" | "medium" | "large";
   loading?: boolean;
-  disabled?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
-}
+  variant?: "primary" | "secondary" | "outline";
+};
 
-export const Button: React.FC<ButtonProps> = ({
+export default function Button({
   title,
-  onPress,
-  variant = "primary",
-  size = "medium",
   loading = false,
-  disabled = false,
+  variant = "primary",
   style,
-  textStyle,
-}) => {
-  const getButtonStyle = () => {
-    const baseStyle = {
-      backgroundColor: COLORS.primary,
-      borderColor: COLORS.primary,
-    };
-
-    switch (variant) {
-      case "secondary":
-        return {
-          ...baseStyle,
-          backgroundColor: COLORS.secondary,
-          borderColor: COLORS.secondary,
-        };
-      case "outline":
-        return {
-          ...baseStyle,
-          backgroundColor: "transparent",
-          borderWidth: 1,
-        };
-      default:
-        return baseStyle;
-    }
-  };
-
-  const getSizeStyle = () => {
-    switch (size) {
-      case "small":
-        return {
-          paddingVertical: SPACING.xs,
-          paddingHorizontal: SPACING.sm,
-        };
-      case "large":
-        return {
-          paddingVertical: SPACING.md,
-          paddingHorizontal: SPACING.lg,
-        };
-      default:
-        return {
-          paddingVertical: SPACING.sm,
-          paddingHorizontal: SPACING.md,
-        };
-    }
-  };
-
-  const getTextColor = () => {
-    if (variant === "outline") {
-      return COLORS.primary;
-    }
-    return "#FFFFFF";
-  };
-
+  disabled,
+  ...props
+}: ButtonProps) {
   return (
     <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled || loading}
       style={[
         styles.button,
-        getButtonStyle(),
-        getSizeStyle(),
+        styles[variant],
         disabled && styles.disabled,
         style,
       ]}
+      disabled={disabled || loading}
+      {...props}
     >
       {loading ? (
-        <ActivityIndicator color={getTextColor()} />
+        <ActivityIndicator color={variant === "outline" ? "#f4511e" : "#fff"} />
       ) : (
-        <Text style={[styles.text, { color: getTextColor() }, textStyle]}>
+        <Text
+          style={[
+            styles.text,
+            variant === "outline" && styles.outlineText,
+            disabled && styles.disabledText,
+          ]}
+        >
           {title}
         </Text>
       )}
     </TouchableOpacity>
   );
-};
+}
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: BORDER_RADIUS.md,
-    alignItems: "center",
+    height: 48,
+    borderRadius: 8,
     justifyContent: "center",
-    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
   },
-  text: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: FONT_WEIGHT.medium,
+  primary: {
+    backgroundColor: "#f4511e",
+  },
+  secondary: {
+    backgroundColor: "#666",
+  },
+  outline: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#f4511e",
   },
   disabled: {
     opacity: 0.5,
+  },
+  text: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  outlineText: {
+    color: "#f4511e",
+  },
+  disabledText: {
+    color: "#999",
   },
 });

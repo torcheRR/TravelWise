@@ -1,1 +1,51 @@
-web/src/firebase.js
+# Ortak .env ve config dosyaları
+.env
+.env.*
+*.env.local
+*.env.development
+*.env.production
+
+# Supabase config ve secret dosyaları
+supabase/.env
+supabase/.env.local
+supabase/.env.*.local
+supabase/config.toml
+supabase/secrets.toml
+supabase/migrations/.*
+supabase/.temp
+TravelWiseMobile/src/config/openrouter.ts
+
+
+# Proje içi config dosyaları
+web/src/config/supabase.config.ts
+TravelWiseMobile/src/config/supabase.config.ts
+web/src/config/supabase.ts
+TravelWiseMobile/src/config/supabase.ts
+web/src/services/supabase.ts
+TravelWiseMobile/src/services/supabase.ts
+shared/config/supabase.ts
+shared/services/supabase.ts
+TravelWiseMobile/shared/config/supabase.ts
+TravelWiseMobile/shared/services/supabase.ts
+TravelWise/shared/services/supabase.ts
+
+# Firebase config dosyaları (varsa)
+web/src/config/firebase.ts
+TravelWiseMobile/src/config/firebase.ts
+shared/firebase/config.ts
+
+# Diğer hassas dosyalar
+*.key
+*.pem
+*.crt
+
+# Node ve build dosyaları
+node_modules/
+dist/
+build/
+
+# Supabase ve OpenRouter anahtarlarını içeren dosyalar
+TravelWiseMobile/src/config/config.ts
+TravelWiseMobile/src/config/openrouter.ts
+web/src/config/config.ts
+web/src/config/supabase.config.ts

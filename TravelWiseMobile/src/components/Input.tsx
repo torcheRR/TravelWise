@@ -6,6 +6,7 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  TextInputProps,
 } from "react-native";
 import {
   COLORS,
@@ -15,7 +16,7 @@ import {
   FONT_WEIGHT,
 } from "../constants/theme";
 
-interface InputProps {
+type InputProps = TextInputProps & {
   label?: string;
   placeholder?: string;
   value: string;
@@ -30,9 +31,9 @@ interface InputProps {
   inputStyle?: TextStyle;
   labelStyle?: TextStyle;
   errorStyle?: TextStyle;
-}
+};
 
-export const Input: React.FC<InputProps> = ({
+export default function Input({
   label,
   placeholder,
   value,
@@ -47,7 +48,8 @@ export const Input: React.FC<InputProps> = ({
   inputStyle,
   labelStyle,
   errorStyle,
-}) => {
+  ...props
+}: InputProps) {
   return (
     <View style={[styles.container, style]}>
       {label && <Text style={[styles.label, labelStyle]}>{label}</Text>}
@@ -67,11 +69,12 @@ export const Input: React.FC<InputProps> = ({
         autoCapitalize={autoCapitalize}
         multiline={multiline}
         numberOfLines={numberOfLines}
+        {...props}
       />
       {error && <Text style={[styles.error, errorStyle]}>{error}</Text>}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {

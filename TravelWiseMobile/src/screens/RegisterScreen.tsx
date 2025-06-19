@@ -23,6 +23,7 @@ export const RegisterScreen: React.FC = () => {
   const navigation = useNavigation<RegisterScreenNavigationProp>();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,7 +31,14 @@ export const RegisterScreen: React.FC = () => {
   const [error, setError] = useState("");
 
   const handleRegister = async () => {
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    if (
+      !firstName ||
+      !lastName ||
+      !username ||
+      !email ||
+      !password ||
+      !confirmPassword
+    ) {
       setError("Lütfen tüm alanları doldurun");
       return;
     }
@@ -45,7 +53,7 @@ export const RegisterScreen: React.FC = () => {
 
     try {
       // TODO: Firebase authentication işlemleri burada yapılacak
-      console.log("Kayıt yapılıyor:", email);
+      console.log("Kayıt yapılıyor:", { email, username });
     } catch (err) {
       setError("Kayıt olurken bir hata oluştu");
     } finally {
@@ -85,6 +93,14 @@ export const RegisterScreen: React.FC = () => {
               />
             </View>
           </View>
+
+          <Input
+            label="Kullanıcı Adı"
+            placeholder="Kullanıcı adınız"
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+          />
 
           <Input
             label="E-posta"
@@ -180,4 +196,3 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
   },
 });
- 

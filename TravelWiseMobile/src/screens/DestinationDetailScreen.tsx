@@ -1,67 +1,81 @@
-import React from "react";
-import { View, Text, StyleSheet, FlatList, Image } from "react-native";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+} from "react-native";
+import { RouteProp, useRoute, useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { COLORS, SPACING, FONT_SIZE } from "../constants/theme";
-
-const DUMMY_POSTS = [
-  {
-    id: "1",
-    user: {
-      name: "Ali Yılmaz",
-      avatar: "https://randomuser.me/api/portraits/men/3.jpg",
-    },
-    image: "https://picsum.photos/400/302",
-    title: "Balon Turu Deneyimi",
-    description: "Kapadokya'da harika bir balon turu yaptık!",
-    date: "10.05.2024",
-    likes: 87,
-    comments: 4,
-  },
-  {
-    id: "2",
-    user: {
-      name: "Zeynep Kaya",
-      avatar: "https://randomuser.me/api/portraits/women/4.jpg",
-    },
-    image: "https://picsum.photos/400/303",
-    title: "Güzel Manzaralar",
-    description: "Pamukkale'nin beyaz travertenlerinde yürümek harikaydı.",
-    date: "12.06.2024",
-    likes: 65,
-    comments: 2,
-  },
-];
+import { getPosts, Post } from "../services/supabase";
+import PostCard from "../components/PostCard";
+import { Ionicons } from "@expo/vector-icons";
+import { MainStackParamList } from "../navigation/AppNavigator";
 
 export const DestinationDetailScreen: React.FC = () => {
   const route = useRoute<any>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const { destination } = route.params || {
     destination: { title: "Destinasyon", location: "" },
   };
 
-  const renderPost = ({ item }: any) => (
-    <View style={styles.postCard}>
-      <Image source={{ uri: item.image }} style={styles.postImage} />
-      <View style={styles.postContent}>
-        <Text style={styles.postTitle}>{item.title}</Text>
-        <Text style={styles.postDesc}>{item.description}</Text>
-        <Text style={styles.postMeta}>
-          {item.date} • {item.likes} beğeni • {item.comments} yorum
-        </Text>
-      </View>
-    </View>
-  );
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLocationPosts = async () => {
+      try {
+        const allPosts = await getPosts();
+        // Sadece bu lokasyona ait postları filtrele
+        const locationPosts = allPosts.filter(
+          (post) => post.location === destination.title
+        );
+        setPosts(locationPosts);
+      } catch (error) {
+        console.error("Lokasyon gönderileri çekilirken hata:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLocationPosts();
+  }, [destination.title]);
+
+  const renderPost = ({ item }: { item: Post }) => <PostCard post={item} />;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{destination.title}</Text>
-      <Text style={styles.location}>{destination.location}</Text>
-      <FlatList
-        data={DUMMY_POSTS}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
-      />
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Ionicons name="arrow-back" size={28} color={COLORS.primary} />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>{destination.title}</Text>
+          <Text style={styles.location}>{destination.location}</Text>
+        </View>
+      </View>
+
+      {loading ? (
+        <Text style={styles.loadingText}>Yükleniyor...</Text>
+      ) : posts.length === 0 ? (
+        <Text style={styles.emptyText}>
+          Bu lokasyonda henüz gönderi bulunmuyor.
+        </Text>
+      ) : (
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingBottom: 32 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 };
@@ -73,51 +87,38 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     marginTop: 24,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
+  backButton: {
+    padding: SPACING.sm,
+  },
+  headerContent: {
+    flex: 1,
+  },
   title: {
     fontSize: FONT_SIZE.xl,
     fontWeight: "700",
     color: COLORS.primary,
-    marginBottom: 2,
+    marginTop: 12,
   },
   location: {
     fontSize: FONT_SIZE.md,
-    color: COLORS.text.secondary,
-    marginBottom: SPACING.lg,
+    color: COLORS.textSecondary,
+
   },
-  postCard: {
-    flexDirection: "row",
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    marginBottom: SPACING.md,
-    overflow: "hidden",
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  postImage: {
-    width: 80,
-    height: 80,
-    backgroundColor: COLORS.surface,
-  },
-  postContent: {
-    flex: 1,
-    padding: 12,
-    justifyContent: "center",
-  },
-  postTitle: {
+  loadingText: {
     fontSize: FONT_SIZE.md,
-    fontWeight: "700",
-    color: COLORS.text.primary,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginTop: SPACING.lg,
   },
-  postDesc: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text.secondary,
-    marginBottom: 4,
-  },
-  postMeta: {
-    fontSize: FONT_SIZE.xs,
-    color: COLORS.text.secondary,
+  emptyText: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginTop: SPACING.lg,
   },
 });

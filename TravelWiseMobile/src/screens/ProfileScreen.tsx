@@ -1,320 +1,592 @@
-import React from "react";
+import React, { useEffect, useState, useLayoutEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   Image,
   TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
   FlatList,
+  TextInput,
 } from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RouteProp } from "@react-navigation/native";
+import { RootStackParamList } from "../navigation/types";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { COLORS, SPACING, FONT_SIZE } from "../constants/theme";
+import {
+  getUser,
+  updateUser,
+  getUserPosts,
+  getUserProfile,
+  updateUserProfile,
+  pickImage,
+  uploadProfileImage,
+  DEFAULT_PROFILE_IMAGE,
+} from "../services/profileService";
+import type { User, Post } from "../services/supabase";
+import { supabase } from "../config/supabase";
+import EmptyState from "../components/EmptyState";
+import { useAuth } from "../contexts/AuthContext";
+import { usePostsContext } from "../contexts/PostsContext";
+import LoadingSpinner from "../components/LoadingSpinner";
+import ErrorMessage from "../components/ErrorMessage";
+import UserAvatar from "../components/UserAvatar";
+import FollowersModal from "../components/FollowersModal";
+import { useTheme } from "../contexts/ThemeContext";
 
-const USER = {
-  name: "Kullanıcı Adı",
-  username: "kullanici123",
-  bio: "İstanbul, Türkiye\nGezgin | Fotoğrafçı | Seyahat Tutkunu",
-  avatar: "https://randomuser.me/api/portraits/men/1.jpg",
-  cover:
-    "https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80",
-  posts: 24,
-  followers: 142,
-  following: 98,
-};
+type ProfileScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "Profile"
+>;
+type ProfileScreenRouteProp = RouteProp<RootStackParamList, "Profile">;
 
-const POSTS = [
-  {
-    id: "1",
-    image: "https://picsum.photos/200/200",
-    title: "asda",
-    desc: "asdadada",
-    date: "01.04.2025",
-    location: "İstanbul",
-    likes: 129,
-    comments: 2,
-  },
-  {
-    id: "2",
-    image: "https://picsum.photos/200/201",
-    title: "selam",
-    desc: "asdadada",
-    date: "02.04.2025",
-    location: "Ankara",
-    likes: 99,
-    comments: 1,
-  },
-];
+export const ProfileScreen = () => {
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const route = useRoute<ProfileScreenRouteProp>();
+  const { user, logout } = useAuth();
+  const { posts, loading: postsLoading, error } = usePostsContext();
+  const { theme, isDark } = useTheme();
+  const [profile, setProfile] = useState<any>(null);
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [followersModalVisible, setFollowersModalVisible] = useState(false);
+  const [followingModalVisible, setFollowingModalVisible] = useState(false);
 
-// Tarihe göre azalan sırala (en son paylaşım en üstte)
-const sortedPosts = [...POSTS].sort(
-  (a, b) =>
-    new Date(b.date.split(".").reverse().join("-")).getTime() -
-    new Date(a.date.split(".").reverse().join("-")).getTime()
-);
+  useEffect(() => {
+    console.log("ProfileScreen useEffect çalıştı");
+    console.log("user:", user);
+    console.log("route.params:", route.params);
 
-export const ProfileScreen: React.FC = () => {
-  const renderPost = ({ item }: any) => (
-    <View style={styles.postCard}>
-      <Image source={{ uri: item.image }} style={styles.postImage} />
-      <View style={styles.postContent}>
-        <Text style={styles.postTitle}>{item.title}</Text>
-        <Text style={styles.postDesc}>{item.desc}</Text>
-        <View style={styles.postFooter}>
-          <Text style={styles.postDate}>{item.date}</Text>
-          <Text style={styles.postLocation}>{item.location}</Text>
-        </View>
-        <View style={styles.iconRow}>
-          <TouchableOpacity>
-            <Ionicons
-              name="thumbs-up-outline"
-              size={18}
-              color={COLORS.primary}
-            />
-          </TouchableOpacity>
-          <Text style={styles.iconText}>{item.likes}</Text>
-          <TouchableOpacity style={{ marginLeft: 12 }}>
-            <Ionicons
-              name="thumbs-down-outline"
-              size={18}
-              color={COLORS.primary}
-            />
-          </TouchableOpacity>
-          <Ionicons
-            name="chatbubble-outline"
-            size={18}
-            color={COLORS.primary}
-            style={{ marginLeft: 12 }}
-          />
-          <Text style={styles.iconText}>{item.comments}</Text>
+    if (route.params?.userId) {
+      console.log("fetchUserAndPosts çağrılacak");
+      fetchUserAndPosts();
+    } else if (user?.id) {
+      console.log("loadProfile çağrılacak");
+      loadProfile();
+    }
+  }, [route.params?.userId, user?.id]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate("Settings")}
+          style={{ marginRight: SPACING.lg }}
+        >
+          <Ionicons name="settings-outline" size={24} color={theme.primary} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, theme.primary]);
+
+  const fetchUserAndPosts = async () => {
+    try {
+      // Kullanıcı bilgilerini al
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", route.params.userId)
+        .single();
+
+      if (userError) throw userError;
+      setProfile(userData);
+      setFullName(userData.full_name || "");
+      setUsername(userData.username || "");
+
+      // Kullanıcının gönderilerini al
+      const { data: postsData, error: postsError } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("user_id", route.params.userId)
+        .order("created_at", { ascending: false });
+
+      if (postsError) throw postsError;
+      // postsData'yi posts context'ine ekle
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    } finally {
+      // loading'i false'a çevir
+    }
+  };
+
+  const loadProfile = async () => {
+    if (!user?.id) {
+      console.log("loadProfile: user.id bulunamadı");
+      return;
+    }
+
+    console.log("loadProfile başladı, user.id:", user.id);
+    setIsUpdating(true);
+
+    try {
+      const data = await getUserProfile(user.id);
+      console.log("loadProfile başarılı, data:", data);
+
+      if (!data) {
+        throw new Error("Profil verisi bulunamadı");
+      }
+
+      setProfile(data);
+      setFullName(data.full_name || "");
+      setUsername(data.username || "");
+    } catch (error: any) {
+      console.error("loadProfile hatası:", error);
+      Alert.alert(
+        "Hata",
+        error.message || "Profil bilgileri yüklenirken bir hata oluştu."
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!user?.id) return;
+
+    setIsUpdating(true);
+    try {
+      const updatedProfile = await updateUserProfile(user.id, {
+        full_name: fullName,
+        username: username,
+      });
+      setProfile(updatedProfile);
+      setIsEditing(false);
+      Alert.alert("Başarılı", "Profil bilgileriniz güncellendi.");
+    } catch (error: any) {
+      if (error.message === "Bu kullanıcı adı zaten kullanılıyor.") {
+        Alert.alert(
+          "Hata",
+          "Bu kullanıcı adı zaten kullanılıyor. Lütfen başka bir kullanıcı adı seçin."
+        );
+      } else {
+        Alert.alert("Hata", "Profil güncellenirken bir hata oluştu.");
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleImagePick = async () => {
+    if (!user?.id) return;
+
+    try {
+      const image = await pickImage();
+      if (!image) return;
+
+      const imageUrl = await uploadProfileImage(user.id, image.base64);
+      await updateUserProfile(user.id, { profile_image_url: imageUrl });
+      await loadProfile();
+      Alert.alert("Başarılı", "Profil fotoğrafınız güncellendi.");
+    } catch (error) {
+      Alert.alert("Hata", "Fotoğraf yüklenirken bir hata oluştu.");
+    }
+  };
+
+  const userPosts = posts?.filter((post) => post.user_id === user?.id) || [];
+
+  if (postsLoading || isUpdating) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return <ErrorMessage message={error} />;
+  }
+
+  const renderPost = ({ item, index }: any) => (
+    <TouchableOpacity
+      style={styles.gridPostCard}
+      onPress={() => navigation.navigate("PostDetail", { postId: item.id })}
+    >
+      <Image source={{ uri: item.image_url }} style={styles.gridPostImage} />
+      <View style={styles.gridPostOverlay}>
+        <View style={styles.gridPostStats}>
+          <View style={styles.gridPostStatItem}>
+            <Ionicons name="thumbs-up" size={16} color={COLORS.white} />
+            <Text style={styles.gridPostStatText}>{item.likes_count || 0}</Text>
+          </View>
+          <View style={styles.gridPostStatItem}>
+            <Ionicons name="thumbs-down" size={16} color={COLORS.white} />
+            <Text style={styles.gridPostStatText}>
+              {item.dislikes_count || 0}
+            </Text>
+          </View>
+          <View style={styles.gridPostStatItem}>
+            <Ionicons name="chatbubble" size={16} color={COLORS.white} />
+            <Text style={styles.gridPostStatText}>
+              {item.comments_count || 0}
+            </Text>
+          </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
-    <FlatList
-      ListHeaderComponent={
-        <>
-          <View style={styles.coverContainer}>
-            <Image source={{ uri: USER.cover }} style={styles.coverImage} />
-            <TouchableOpacity style={styles.coverEditBtn}>
-              <Ionicons
-                name="camera-outline"
-                size={22}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
-            <View style={styles.avatarContainer}>
-              <Image source={{ uri: USER.avatar }} style={styles.avatar} />
-              <TouchableOpacity style={styles.avatarEditBtn}>
-                <Ionicons
-                  name="camera-outline"
-                  size={20}
-                  color={COLORS.primary}
-                />
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: theme.card, borderBottomColor: theme.border },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={handleImagePick}
+          style={styles.avatarContainer}
+        >
+          <Image
+            source={{
+              uri: profile?.profile_image_url || DEFAULT_PROFILE_IMAGE,
+            }}
+            style={styles.avatar}
+          />
+          <View
+            style={[
+              styles.editAvatarButton,
+              { backgroundColor: theme.primary },
+            ]}
+          >
+            <Ionicons name="camera" size={20} color={theme.card} />
+          </View>
+        </TouchableOpacity>
+
+        <Text
+          style={[
+            styles.username,
+            { color: COLORS.primary, fontSize: FONT_SIZE.sm },
+          ]}
+        >
+          @{profile?.username}
+        </Text>
+        <Text style={[styles.fullName, { color: theme.text }]}>
+          {profile?.full_name ? profile.full_name : "Adınızı Ekleyin"}
+        </Text>
+        {profile?.location && (
+          <Text style={[styles.location, { color: theme.text }]}>
+            <Ionicons name="location-outline" size={16} color={theme.text} />{" "}
+            {profile.location}
+          </Text>
+        )}
+
+        <View style={styles.statsContainer}>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => setFollowersModalVisible(true)}
+          >
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {profile?.followers_count || 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.text }]}>
+              Takipçi
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => setFollowingModalVisible(true)}
+          >
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {profile?.following_count || 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.text }]}>Takip</Text>
+          </TouchableOpacity>
+          <View style={styles.statItem}>
+            <Text style={[styles.statNumber, { color: theme.text }]}>
+              {userPosts.length}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.text }]}>
+              Gönderi
+            </Text>
+          </View>
+        </View>
+
+        {isEditing ? (
+          <View style={styles.editContainer}>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.card,
+                },
+              ]}
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="İsim Soyisim"
+              placeholderTextColor={theme.text}
+            />
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  borderColor: theme.border,
+                  backgroundColor: theme.card,
+                },
+              ]}
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Kullanıcı Adı"
+              autoCapitalize="none"
+              placeholderTextColor={theme.text}
+            />
+            <View style={styles.editButtons}>
+              <TouchableOpacity
+                style={[styles.button, styles.cancelButton]}
+                onPress={() => setIsEditing(false)}
+              >
+                <Text style={styles.buttonText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.button, styles.saveButton]}
+                onPress={handleUpdateProfile}
+                disabled={isUpdating}
+              >
+                <Text style={styles.buttonText}>Kaydet</Text>
               </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.infoContainer}>
-            <Text style={styles.name}>{USER.name}</Text>
-            <Text style={styles.username}>@{USER.username}</Text>
-            <Text style={styles.bio}>{USER.bio}</Text>
-            <TouchableOpacity style={styles.editProfileBtn}>
-              <Ionicons name="pencil-outline" size={18} color={COLORS.white} />
-              <Text style={styles.editProfileText}>Profili Düzenle</Text>
-            </TouchableOpacity>
-            <View style={styles.statsRow}>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{USER.posts}</Text>
-                <Text style={styles.statLabel}>Gönderiler</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{USER.followers}</Text>
-                <Text style={styles.statLabel}>Takipçiler</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statNumber}>{USER.following}</Text>
-                <Text style={styles.statLabel}>Takip Edilenler</Text>
-              </View>
-            </View>
-          </View>
-          <Text style={styles.sectionTitle}>Gönderiler</Text>
-        </>
-      }
-      data={sortedPosts}
-      renderItem={renderPost}
-      keyExtractor={(item) => item.id}
-      contentContainerStyle={{ paddingBottom: 32 }}
-      style={{ backgroundColor: COLORS.background }}
-      showsVerticalScrollIndicator={false}
-    />
+        ) : (
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => setIsEditing(true)}
+          >
+            <Text style={styles.editButtonText}>Profili Düzenle</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.content}>
+        <Text style={styles.sectionTitle}>Gönderilerim</Text>
+        {userPosts.length === 0 ? (
+          <EmptyState
+            icon="camera-outline"
+            title="Henüz Gönderi Yok"
+            message="İlk gönderini paylaşmaya ne dersin?"
+          />
+        ) : (
+          <FlatList
+            data={userPosts}
+            renderItem={renderPost}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            scrollEnabled={false}
+            contentContainerStyle={styles.postsList}
+            columnWrapperStyle={styles.postRow}
+          />
+        )}
+      </View>
+
+      <FollowersModal
+        visible={followersModalVisible}
+        onClose={() => setFollowersModalVisible(false)}
+        userId={user?.id}
+        type="followers"
+      />
+      <FollowersModal
+        visible={followingModalVisible}
+        onClose={() => setFollowingModalVisible(false)}
+        userId={user?.id}
+        type="following"
+      />
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  coverContainer: {
-    width: "100%",
-    height: 180,
-    backgroundColor: COLORS.primary,
-    position: "relative",
-    marginBottom: 60,
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
   },
-  coverImage: {
-    width: "100%",
-    height: "100%",
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  coverEditBtn: {
-    position: "absolute",
-    top: 16,
-    right: 16,
+  header: {
+    alignItems: "center",
+    padding: SPACING.lg,
     backgroundColor: COLORS.white,
-    borderRadius: 20,
-    padding: 8,
-    elevation: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   avatarContainer: {
-    position: "absolute",
-    left: 24,
-    bottom: -36,
-    backgroundColor: COLORS.white,
-    borderRadius: 50,
-    padding: 4,
-    elevation: 4,
+    position: "relative",
+    marginBottom: SPACING.md,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: COLORS.surface,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  avatarEditBtn: {
+  editAvatarButton: {
     position: "absolute",
-    right: -8,
-    bottom: -8,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: 4,
-    elevation: 2,
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.primary,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  infoContainer: {
-    alignItems: "flex-start",
-    paddingHorizontal: 24,
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  name: {
+  username: {
     fontSize: FONT_SIZE.xl,
     fontWeight: "700",
     color: COLORS.text.primary,
+    marginBottom: SPACING.xs,
   },
-  username: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text.secondary,
+  fullName: {
+    fontSize: FONT_SIZE.xl,
+    fontWeight: "bold",
+    color: COLORS.text.primary,
     marginBottom: 4,
   },
-  bio: {
-    fontSize: FONT_SIZE.md,
-    color: COLORS.text.secondary,
-    marginBottom: 12,
-  },
-  editProfileBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginBottom: 16,
-  },
-  editProfileText: {
-    color: COLORS.white,
-    fontWeight: "600",
-    marginLeft: 6,
+  location: {
     fontSize: FONT_SIZE.sm,
+    color: COLORS.text.secondary,
   },
-  statsRow: {
+  statsContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     width: "100%",
-    marginTop: 8,
-    marginBottom: 8,
+    marginBottom: SPACING.lg,
   },
-  statBox: {
+  statItem: {
     alignItems: "center",
-    flex: 1,
   },
   statNumber: {
     fontSize: FONT_SIZE.lg,
     fontWeight: "700",
-    color: COLORS.primary,
+    color: COLORS.text.primary,
   },
   statLabel: {
     fontSize: FONT_SIZE.sm,
     color: COLORS.text.secondary,
   },
+  editButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.sm,
+    borderRadius: 20,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  editButtonText: {
+    color: COLORS.white,
+    fontSize: FONT_SIZE.sm,
+    fontWeight: "600",
+  },
+  content: {
+    padding: SPACING.lg,
+  },
   sectionTitle: {
     fontSize: FONT_SIZE.lg,
     fontWeight: "700",
-    color: COLORS.text.primary,
-    marginLeft: 24,
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  postCard: {
-    flexDirection: "row",
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    marginHorizontal: 24,
+    color: COLORS.primary,
     marginBottom: SPACING.md,
-    overflow: "hidden",
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  postImage: {
-    width: 80,
-    height: 80,
-    backgroundColor: COLORS.surface,
+  postsList: {
+    paddingBottom: SPACING.xl,
   },
-  postContent: {
-    flex: 1,
-    padding: 12,
-    justifyContent: "center",
+  gridPostCard: {
+    position: "relative",
+    width: "33.33%",
+    height: 200,
+    marginBottom: SPACING.md,
   },
-  postTitle: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: "700",
-    color: COLORS.text.primary,
+  gridPostImage: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: COLORS.background,
   },
-  postDesc: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text.secondary,
-    marginBottom: 4,
+  gridPostOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    borderRadius: 12,
+    justifyContent: "flex-end",
   },
-  postFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  postDate: {
-    fontSize: FONT_SIZE.xs,
-    color: COLORS.text.secondary,
-  },
-  postLocation: {
-    fontSize: FONT_SIZE.xs,
-    color: COLORS.text.secondary,
-  },
-  iconRow: {
+  gridPostStats: {
     flexDirection: "row",
     alignItems: "center",
+    padding: SPACING.md,
   },
-  iconText: {
+  gridPostStatItem: {
+    alignItems: "center",
+  },
+  gridPostStatText: {
     fontSize: FONT_SIZE.sm,
-    color: COLORS.text.primary,
+    color: COLORS.white,
     marginLeft: 4,
   },
+  editContainer: {
+    width: "100%",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    fontSize: 16,
+  },
+  editButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  button: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 6,
+  },
+  cancelButton: {
+    backgroundColor: "#FF3B30",
+  },
+  saveButton: {
+    backgroundColor: "#34C759",
+  },
+  buttonText: {
+    color: "white",
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  settingsButton: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 8,
+    marginRight: 10,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  postRow: {
+    justifyContent: "flex-start",
+  },
 });
+
+export default ProfileScreen;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -7,13 +7,25 @@ import {
   TouchableOpacity,
   Dimensions,
   TextInput,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, FONT_SIZE } from "../constants/theme";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { MainStackParamList } from "../navigation/AppNavigator";
+import { getPosts, Post } from "../services/supabase";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const CATEGORY_BOX_SIZE = (SCREEN_WIDTH - SPACING.lg * 2 - 12) / 2; // 12px aralık
+const GAP = 12;
+const NUM_COLUMNS = 4;
+const CATEGORY_BOX_SIZE =
+  (SCREEN_WIDTH - GAP * (NUM_COLUMNS + 3)) / NUM_COLUMNS;
 
 const CATEGORIES = [
   {
@@ -21,76 +33,118 @@ const CATEGORIES = [
     label: "Yeme-İçme",
     icon: "restaurant-outline",
     color: "#FF7043",
-    description: "En iyi restoranlar ve kafeler",
   },
   {
     key: "museums",
-    label: "Müzeler",
+    label: "Müze",
     icon: "business-outline",
     color: "#9C27B0",
-    description: "Tarihi ve kültürel mekanlar",
   },
   {
-    key: "parks",
-    label: "Parklar",
+    key: "nature",
+    label: "Doğa",
     icon: "leaf-outline",
     color: "#43A047",
-    description: "Doğal ve şehir parkları",
   },
   {
     key: "other",
     label: "Diğer",
     icon: "ellipsis-horizontal-outline",
     color: "#607D8B",
-    description: "Diğer tüm kategoriler",
-  },
-];
-
-const FEATURED = [
-  {
-    key: "1",
-    title: "Kapadokya",
-    location: "Nevşehir, Türkiye",
-    color: "#FFF3E0",
-  },
-  {
-    key: "2",
-    title: "Pamukkale",
-    location: "Denizli, Türkiye",
-    color: "#E3F2FD",
-  },
-  {
-    key: "3",
-    title: "Ayasofya",
-    location: "İstanbul, Türkiye",
-    color: "#E8F5E9",
   },
 ];
 
 export const TripsScreen: React.FC = () => {
-  const navigation = useNavigation();
-  const [search, setSearch] = React.useState("");
+  const navigation =
+    useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const searchInputRef = useRef<TextInput>(null);
+  const [search, setSearch] = useState("");
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
+  const [featuredLocations, setFeaturedLocations] = useState<any[]>([]);
 
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 32 }}
-    >
+  useEffect(() => {
+    const fetchPosts = async () => {
+      try {
+        const allPosts = await getPosts();
+        setPosts(allPosts);
+        setFilteredPosts(allPosts);
+
+        // En çok post girilen 4 lokasyonu bul
+        const locationCounts: { [key: string]: number } = {};
+        allPosts.forEach((post) => {
+          if (post.location) {
+            locationCounts[post.location] =
+              (locationCounts[post.location] || 0) + 1;
+          }
+        });
+
+        // Lokasyonları post sayısına göre sırala ve ilk 4'ünü al
+        const sortedLocations = Object.entries(locationCounts)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 4)
+          .map(([location, count], index) => ({
+            key: index.toString(),
+            title: location,
+            location: location,
+            postCount: count,
+            color:
+              ["#FFF3E0", "#E3F2FD", "#E8F5E9", "#F3E5F5"][index] || "#FFF3E0",
+          }));
+
+        setFeaturedLocations(sortedLocations);
+      } catch (error) {
+        console.error("Gönderiler çekilirken hata:", error);
+      }
+    };
+    fetchPosts();
+  }, []);
+
+  // Arama metnine göre filtrele
+  useEffect(() => {
+    if (search.trim() === "") {
+      setFilteredPosts(posts);
+    } else {
+      const filtered = posts.filter(
+        (post) =>
+          post.title.toLowerCase().includes(search.toLowerCase()) ||
+          post.description.toLowerCase().includes(search.toLowerCase()) ||
+          post.location.toLowerCase().includes(search.toLowerCase())
+      );
+      setFilteredPosts(filtered);
+    }
+  }, [search, posts]);
+
+  const handleCategoryPress = (category: (typeof CATEGORIES)[0]) => {
+    navigation.navigate("Category", { category: category });
+  };
+
+  const renderHeader = () => (
+    <>
       <Text style={styles.pageTitle}>Keşfet</Text>
       <Text style={styles.pageSubtitle}>Size en uygun seçenekleri bulun</Text>
       <View style={styles.searchBarContainer}>
         <Ionicons
           name="search"
           size={20}
-          color={COLORS.text.secondary}
+          color={COLORS.textSecondary}
           style={{ marginRight: 8 }}
         />
         <TextInput
           style={styles.searchBar}
           placeholder="Gönderi veya destinasyon ara..."
-          placeholderTextColor={COLORS.text.secondary}
+          placeholderTextColor={COLORS.textSecondary}
           value={search}
           onChangeText={setSearch}
+          autoCorrect={false}
+          autoCapitalize="none"
+          returnKeyType="search"
+          blurOnSubmit={false}
+          ref={searchInputRef}
+          onFocus={() => {}}
+          onBlur={() => {}}
+          editable={true}
+          selectTextOnFocus={false}
         />
       </View>
 
@@ -104,10 +158,11 @@ export const TripsScreen: React.FC = () => {
                 backgroundColor: cat.color + "22",
                 width: CATEGORY_BOX_SIZE,
                 height: CATEGORY_BOX_SIZE,
-                marginRight: idx % 2 === 0 ? 8 : 0,
-                marginBottom: 8,
+                marginRight: (idx + 1) % NUM_COLUMNS === 0 ? 0 : GAP,
+                marginBottom: GAP,
               },
             ]}
+            onPress={() => handleCategoryPress(cat)}
           >
             <Ionicons
               name={cat.icon as any}
@@ -118,23 +173,19 @@ export const TripsScreen: React.FC = () => {
             <Text style={[styles.categoryLabel, { color: cat.color }]}>
               {cat.label}
             </Text>
-            <Text style={styles.categoryDesc}>{cat.description}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionTitle}>Öne Çıkan Destinasyonlar</Text>
-        <TouchableOpacity>
-          <Text style={styles.seeAll}>Tümünü Gör</Text>
-        </TouchableOpacity>
       </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={{ marginLeft: SPACING.lg }}
       >
-        {FEATURED.map((item) => (
+        {featuredLocations.map((item) => (
           <TouchableOpacity
             key={item.key}
             style={[styles.featuredCard, { backgroundColor: item.color }]}
@@ -146,10 +197,113 @@ export const TripsScreen: React.FC = () => {
           >
             <Text style={styles.featuredTitle}>{item.title}</Text>
             <Text style={styles.featuredLocation}>{item.location}</Text>
+            <Text style={styles.featuredPostCount}>
+              {item.postCount} gönderi
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
-    </ScrollView>
+    </>
+  );
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.container}>
+          <ScrollView
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 32 }}
+          >
+            {renderHeader()}
+            {filteredPosts.map((item: Post) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.postCard}
+                onPress={() =>
+                  navigation.navigate("PostDetail", { postId: item.id })
+                }
+              >
+                <Image
+                  source={{ uri: item.image_url }}
+                  style={styles.postImage}
+                />
+                <View
+                  style={[
+                    styles.postContent,
+                    {
+                      paddingTop: 0,
+                      alignItems: "flex-start",
+                      justifyContent: "flex-start",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.postTitle, { marginTop: 0 }]}
+                    numberOfLines={2}
+                  >
+                    {item.title}
+                  </Text>
+                  <Text
+                    style={[styles.postDescription, { marginTop: 0 }]}
+                    numberOfLines={4}
+                  >
+                    {item.description}
+                  </Text>
+                  <View style={[styles.postStatsRow, { marginTop: 8 }]}>
+                    <View style={styles.statWithIcon}>
+                      <Ionicons
+                        name="thumbs-up-outline"
+                        size={16}
+                        color={COLORS.primary}
+                        style={{ marginRight: 2 }}
+                      />
+                      <Text style={styles.postStat}>
+                        {item.likes_count || 0}
+                      </Text>
+                    </View>
+                    <View style={styles.statWithIcon}>
+                      <Ionicons
+                        name="thumbs-down-outline"
+                        size={16}
+                        color={COLORS.primary}
+                        style={{ marginRight: 2 }}
+                      />
+                      <Text style={styles.postStat}>
+                        {item.dislikes_count || 0}
+                      </Text>
+                    </View>
+                    <View style={styles.statWithIcon}>
+                      <Ionicons
+                        name="chatbubble-outline"
+                        size={16}
+                        color={COLORS.primary}
+                        style={{ marginRight: 2 }}
+                      />
+                      <Text style={styles.postStat}>
+                        {item.comments_count || 0}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.postDate}>
+                    {new Date(item.created_at).toLocaleDateString("tr-TR", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -177,7 +331,7 @@ const styles = StyleSheet.create({
   searchBar: {
     flex: 1,
     fontSize: FONT_SIZE.md,
-    color: COLORS.text.primary,
+    color: COLORS.primary,
     paddingVertical: 4,
   },
   pageTitle: {
@@ -189,18 +343,21 @@ const styles = StyleSheet.create({
   },
   pageSubtitle: {
     fontSize: FONT_SIZE.md,
-    color: COLORS.text.secondary,
+    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   categoriesGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginBottom: SPACING.xl,
+    justifyContent: "center",
+    padding: 0,
+    marginBottom: 0,
   },
   categoryBox: {
+    width: CATEGORY_BOX_SIZE,
+    height: CATEGORY_BOX_SIZE,
     borderRadius: 18,
     padding: SPACING.md,
+    margin: 0,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 120,
@@ -208,12 +365,10 @@ const styles = StyleSheet.create({
   categoryLabel: {
     fontSize: FONT_SIZE.lg,
     fontWeight: "700",
-    marginBottom: 2,
-  },
-  categoryDesc: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text.secondary,
+    marginBottom: 0,
     textAlign: "center",
+    justifyContent: "center",
+    alignItems: "center",
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -226,7 +381,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FONT_SIZE.lg,
     fontWeight: "700",
-    color: COLORS.text.primary,
+    color: COLORS.text,
   },
   seeAll: {
     fontSize: FONT_SIZE.sm,
@@ -245,12 +400,67 @@ const styles = StyleSheet.create({
   featuredTitle: {
     fontSize: FONT_SIZE.md,
     fontWeight: "700",
-    color: COLORS.text.primary,
+    color: COLORS.text,
     marginBottom: 2,
   },
   featuredLocation: {
     fontSize: FONT_SIZE.sm,
-    color: COLORS.text.secondary,
+    color: COLORS.textSecondary,
     marginBottom: 4,
   },
+  featuredPostCount: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  postCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    marginBottom: GAP,
+  },
+  postImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+    marginRight: SPACING.md,
+  },
+  postContent: {
+    flex: 1,
+    paddingTop: SPACING.md,
+  },
+  postTitle: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  postDescription: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  postStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statWithIcon: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: SPACING.md,
+  },
+  postStat: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textSecondary,
+  },
+  postDate: {
+    fontSize: FONT_SIZE.sm,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.sm,
+  },
 });
+
+export default TripsScreen;

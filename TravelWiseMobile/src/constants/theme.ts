@@ -1,21 +1,13 @@
 export const COLORS = {
-  primary: '#4CAF50',
-  secondary: '#2196F3',
-  accent: '#FFC107',
-  background: '#F5F5F5',
-  surface: '#FFFFFF',
-  error: '#F44336',
-  text: {
-    primary: '#212121',
-    secondary: '#757575',
-    disabled: '#9E9E9E',
-    hint: '#9E9E9E',
-  },
-  border: '#E0E0E0',
-  divider: '#BDBDBD',
-  success: '#4CAF50',
-  warning: '#FFC107',
-  info: '#2196F3',
+  primary: '#FF3B6A',
+  secondary: '#5856D6',
+  background: '#F2F2F7',
+  text: '#000000',
+  textSecondary: '#8E8E93',
+  border: '#C6C6C8',
+  error: '#FF3B30',
+  success: '#34C759',
+  warning: '#FF9500',
   white: '#FFFFFF',
   black: '#000000',
 };
@@ -42,6 +34,7 @@ export const FONT_SIZE = {
 export const FONT_WEIGHT = {
   regular: '400',
   medium: '500',
+  semibold: '600',
   bold: '700',
 };
 
@@ -85,4 +78,6 @@ export const SHADOWS = {
     shadowRadius: 12,
     elevation: 8,
   },
-}; 
+};
+
+export const DEFAULT_PROFILE_IMAGE = require('../assets/default_profile.png'); 

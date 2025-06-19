@@ -3,154 +3,127 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
   FlatList,
+  TouchableOpacity,
+  Image,
   SafeAreaView,
+  RefreshControl,
 } from "react-native";
-import { COLORS, SPACING, FONT_SIZE, FONT_WEIGHT } from "../constants/theme";
-import { Button } from "../components/Button";
 import { Ionicons } from "@expo/vector-icons";
+import { COLORS, SPACING, FONT_SIZE } from "../constants/theme";
 import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../navigation/AppNavigator";
+import EmptyState from "../components/EmptyState";
+import { usePostsContext } from "../contexts/PostsContext";
+import LoadingSpinner from "../components/LoadingSpinner";
+import ErrorMessage from "../components/ErrorMessage";
+import PostCard from "../components/PostCard";
 
-const DUMMY_POSTS = [
-  {
-    id: "1",
-    user: {
-      name: "Kullanıcı Adı",
-      avatar: "https://randomuser.me/api/portraits/men/1.jpg",
-      location: "İstanbul, Türkiye",
-    },
-    image: "https://picsum.photos/400/300",
-    title: "İstanbul'da 3 Gün",
-    description:
-      "İstanbul'un tarihi mekanlarını keşfettim ve harika deneyimler yaşadım.",
-    date: "15-18 Mart 2024",
-    likes: 129,
-    comments: 2,
-  },
-  {
-    id: "2",
-    user: {
-      name: "Ayşe Yılmaz",
-      avatar: "https://randomuser.me/api/portraits/women/2.jpg",
-      location: "Ankara, Türkiye",
-    },
-    image: "https://picsum.photos/400/301",
-    title: "Ankara'da Kültür Turu",
-    description: "Müzeleri gezdim, çok keyifliydi!",
-    date: "10-12 Şubat 2024",
-    likes: 87,
-    comments: 5,
-  },
-];
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const HomeScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp>();
+  const { posts, loading, error, refreshPosts } = usePostsContext();
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  const renderPost = ({ item }: any) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Image source={{ uri: item.user.avatar }} style={styles.avatar} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.userName}>{item.user.name}</Text>
-          <Text style={styles.userLocation}>{item.user.location}</Text>
-        </View>
-        <TouchableOpacity>
-          <Ionicons name="bookmark-outline" size={22} color={COLORS.primary} />
-        </TouchableOpacity>
-      </View>
-      <Image source={{ uri: item.image }} style={styles.postImage} />
-      <View style={styles.cardContent}>
-        <Text style={styles.postTitle}>{item.title}</Text>
-        <Text style={styles.postDescription}>{item.description}</Text>
-        <View style={styles.cardFooter}>
-          <View style={styles.iconRow}>
-            <TouchableOpacity>
-              <Ionicons
-                name="thumbs-up-outline"
-                size={20}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
-            <Text style={styles.iconText}>{item.likes}</Text>
-            <TouchableOpacity style={{ marginLeft: 12 }}>
-              <Ionicons
-                name="thumbs-down-outline"
-                size={20}
-                color={COLORS.primary}
-              />
-            </TouchableOpacity>
-            <Ionicons
-              name="chatbubble-outline"
-              size={20}
-              color={COLORS.primary}
-              style={{ marginLeft: 16 }}
-            />
-            <Text style={styles.iconText}>{item.comments}</Text>
-          </View>
-          <Text style={styles.postDate}>{item.date}</Text>
-        </View>
-      </View>
-    </View>
-  );
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.appTitle}>TravelWise</Text>
-        <View style={{ flex: 1 }} />
+  React.useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
         <TouchableOpacity
-          style={styles.notificationBtn}
-          onPress={() => navigation.navigate("Notifications")}
+          onPress={() => navigation.navigate("Notifications" as never)}
+          style={{ marginRight: SPACING.lg }}
         >
           <Ionicons
             name="notifications-outline"
-            size={28}
+            size={24}
             color={COLORS.primary}
           />
         </TouchableOpacity>
-      </View>
+      ),
+      headerTitle: "TravelWise",
+      headerTitleAlign: "center",
+    });
+  }, [navigation]);
+
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      refreshPosts();
+    });
+    return unsubscribe;
+  }, [navigation, refreshPosts]);
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await refreshPosts();
+    setRefreshing(false);
+  }, [refreshPosts]);
+
+  const renderItem = ({ item }: { item: any }) => <PostCard post={item} />;
+
+  let content = null;
+  if (loading) {
+    content = <LoadingSpinner />;
+  } else if (error) {
+    content = <ErrorMessage message={error.message || String(error)} />;
+  } else if (!posts || posts.length === 0) {
+    content = (
+      <EmptyState
+        icon="newspaper-outline"
+        title="Gönderi Bulunamadı"
+        message="Henüz hiç gönderi paylaşılmamış."
+      />
+    );
+  } else {
+    content = (
       <FlatList
-        data={DUMMY_POSTS}
-        renderItem={renderPost}
-        keyExtractor={(item) => item.id}
+        data={posts}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
-      <TouchableOpacity style={styles.fab}>
-        <Ionicons name="add" size={28} color={COLORS.white} />
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {content}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate("CreatePost" as never)}
+      >
+        <Ionicons name="add" size={24} color={COLORS.white} />
       </TouchableOpacity>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
+  container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.background,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  appTitle: {
+  headerTitle: {
     fontSize: FONT_SIZE.xl,
     fontWeight: "700",
     color: COLORS.primary,
   },
-  notificationBtn: {
-    padding: 4,
-  },
   listContent: {
     padding: SPACING.lg,
-    paddingBottom: 100,
   },
   card: {
     backgroundColor: COLORS.white,
@@ -163,68 +136,71 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: SPACING.md,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginRight: SPACING.md,
-    backgroundColor: COLORS.surface,
-  },
-  userName: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: "600",
-    color: COLORS.text.primary,
-  },
-  userLocation: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text.secondary,
-  },
-  postImage: {
+  cardImage: {
     width: "100%",
-    height: 220,
+    height: 200,
     backgroundColor: COLORS.surface,
   },
   cardContent: {
-    padding: SPACING.md,
+    padding: SPACING.sm,
   },
-  postTitle: {
-    fontSize: FONT_SIZE.lg,
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.xs,
+  },
+  avatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: SPACING.xs,
+  },
+  userTextContainer: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: FONT_SIZE.sm,
+    fontWeight: "600",
+    color: COLORS.text.primary,
+  },
+  cardTitle: {
+    fontSize: FONT_SIZE.md,
     fontWeight: "700",
     color: COLORS.text.primary,
-    marginBottom: 2,
+    marginBottom: SPACING.xs,
   },
-  postDescription: {
-    fontSize: FONT_SIZE.md,
+  cardDescription: {
+    fontSize: FONT_SIZE.sm,
     color: COLORS.text.secondary,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.xs,
   },
   cardFooter: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
   },
-  iconRow: {
+  stats: {
     flexDirection: "row",
     alignItems: "center",
   },
-  iconText: {
-    fontSize: FONT_SIZE.sm,
-    color: COLORS.text.primary,
-    marginLeft: 4,
+  stat: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: SPACING.sm,
   },
-  postDate: {
-    fontSize: FONT_SIZE.sm,
+  statText: {
+    fontSize: FONT_SIZE.xs,
+    color: COLORS.text.secondary,
+    marginLeft: 2,
+  },
+  date: {
+    fontSize: FONT_SIZE.xs,
     color: COLORS.text.secondary,
   },
   fab: {
     position: "absolute",
-    right: 24,
-    bottom: 32,
+    right: SPACING.lg,
+    bottom: SPACING.xl,
     backgroundColor: COLORS.primary,
     width: 56,
     height: 56,
@@ -236,5 +212,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
+    zIndex: 10,
   },
 });
+
+export default HomeScreen;
